@@ -1,0 +1,662 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>멍냥지도 | 반려동물 동반 장소 찾기</title>
+
+  <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=41a46ce230457ef8074be30843244b99&libraries=services&autoload=false"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <style>
+    :root {
+      --cream:#fffaf2; --paper:#fff; --brown:#795548;
+      --dark-brown:#49352c; --orange:#f2ad75;
+      --pale-orange:#fff0df; --pink:#f9ded9;
+      --text:#453b36; --muted:#9b8c83;
+      --line:#f0e6dc; --green:#7caa86;
+    }
+    * { box-sizing:border-box; }
+    body {
+      margin:0; color:var(--text); background:var(--cream);
+      font-family:"Malgun Gothic",Arial,sans-serif;
+    }
+    button,input { font:inherit; }
+    button { cursor:pointer; }
+    .app {
+      display:flex; width:100%; height:100vh; height:100dvh;
+      overflow:hidden;
+    }
+    .sidebar {
+      display:flex; flex-direction:column; width:370px;
+      min-width:320px; background:var(--paper);
+      border-right:1px solid var(--line); z-index:2;
+    }
+    .brand {
+      padding:25px 24px 19px; background:var(--cream);
+      border-bottom:1px solid var(--line);
+    }
+    .brand-top { display:flex; align-items:center; gap:12px; }
+    .brand-icon {
+      display:flex; align-items:center; justify-content:center;
+      width:54px; height:54px; flex-shrink:0;
+      border-radius:19px; background:var(--pale-orange);
+      font-size:31px; transform:rotate(-5deg);
+    }
+    .brand h1 {
+      margin:0; font-size:25px; font-weight:900;
+      letter-spacing:-1.2px; color:var(--dark-brown);
+    }
+    .brand p { margin:5px 0 0; font-size:12px; color:var(--muted); }
+    .paw-decoration {
+      margin-top:16px; padding:10px 12px; border-radius:13px;
+      background:#fff0e3; color:#8b6249; font-size:12px; line-height:1.6;
+    }
+    .search-section { padding:18px 18px 14px; }
+    .section-label {
+      margin-bottom:10px; font-size:13px; font-weight:800;
+      color:var(--dark-brown);
+    }
+    .search-box {
+      display:flex; align-items:center; gap:8px;
+      padding:5px 6px 5px 12px; border:1.5px solid #eadbcd;
+      border-radius:14px; background:#fffdf9;
+      transition:border-color .2s,box-shadow .2s;
+    }
+    .search-box:focus-within {
+      border-color:var(--orange); box-shadow:0 0 0 3px #f2ad7520;
+    }
+    .search-icon { font-size:18px; }
+    #keywordInput {
+      width:100%; min-width:0; padding:10px 0; border:none;
+      outline:none; color:var(--text); background:transparent; font-size:13px;
+    }
+    #keywordInput::placeholder { color:#b7aaa1; }
+    .search-button {
+      flex-shrink:0; padding:9px 13px; border:none;
+      border-radius:10px; background:var(--brown); color:white;
+      font-size:12px; font-weight:800;
+    }
+    .search-button:hover { background:var(--dark-brown); }
+    .location-button {
+      width:100%; margin-top:9px; padding:10px;
+      border:1px solid var(--line); border-radius:12px;
+      background:white; color:var(--brown); font-size:12px; font-weight:700;
+    }
+    .location-button:hover { background:var(--cream); }
+    .tabs { display:flex; gap:8px; padding:0 18px 15px; }
+    .tab {
+      flex:1; padding:13px 8px; border:1.5px solid var(--line);
+      border-radius:14px; background:#fff; color:#8e7c70;
+      font-size:14px; font-weight:800; transition:.2s;
+    }
+    .tab:hover { border-color:#e5c3a5; }
+    .tab.active {
+      border-color:var(--orange); background:var(--pale-orange);
+      color:var(--dark-brown); box-shadow:0 3px 0 #f0dfcf;
+    }
+    .list-header {
+      display:flex; align-items:center; justify-content:space-between;
+      gap:8px; padding:14px 20px; border-top:1px solid var(--line);
+      border-bottom:1px solid var(--line); background:#fffdf9;
+    }
+    .list-title { font-size:14px; font-weight:900; }
+    #resultCount {
+      padding:5px 9px; border-radius:20px; background:var(--pink);
+      color:#965e55; font-size:11px; font-weight:800; white-space:nowrap;
+    }
+    #status {
+      padding:10px 20px 0; color:var(--muted);
+      font-size:11px; line-height:1.5;
+    }
+    #placeList {
+      flex:1; overflow-y:auto; padding:8px 13px 18px;
+      scrollbar-width:thin; scrollbar-color:#e7d7c9 transparent;
+    }
+    .place-card {
+      position:relative; margin:7px 0; padding:15px 13px;
+      border:1px solid #f1e7dd; border-radius:16px;
+      background:white; cursor:pointer;
+      transition:transform .18s,border-color .18s,box-shadow .18s;
+    }
+    .place-card:hover {
+      transform:translateY(-2px); border-color:#edc5a4;
+      box-shadow:0 5px 14px #7955480d;
+    }
+    .card-top { display:flex; align-items:flex-start; gap:10px; }
+    .card-emoji {
+      display:flex; align-items:center; justify-content:center;
+      width:43px; height:43px; flex-shrink:0; border-radius:14px;
+      background:var(--pale-orange); font-size:24px;
+    }
+    .card-info { flex:1; min-width:0; }
+    .place-card h3 {
+      margin:2px 0 6px; font-size:14px; line-height:1.45; overflow-wrap:anywhere;
+    }
+    .category-tag {
+      display:inline-block; padding:3px 7px; border-radius:6px;
+      background:#f8f0e7; color:#896b55; font-size:10px; font-weight:800;
+    }
+    .pet-tag {
+      display:inline-block; margin-top:9px; padding:5px 7px;
+      border-radius:7px; background:#eef6ed; color:#537f58;
+      font-size:10px; font-weight:800;
+    }
+    .place-address {
+      margin-top:10px; color:#82776f; font-size:11px;
+      line-height:1.6; overflow-wrap:anywhere;
+    }
+    .place-distance { margin-top:5px; color:#b09c8b; font-size:10px; }
+    .empty-state {
+      padding:30px 14px; text-align:center; color:var(--muted);
+      font-size:13px; line-height:1.9;
+    }
+    .empty-state .big-dog { margin-bottom:10px; font-size:44px; }
+    .map-area {
+      position:relative; flex:1; min-width:0; min-height:0;
+      padding:13px; background:#f8f2e9;
+    }
+    #map {
+      width:100%; height:100%; overflow:hidden;
+      border:3px solid white; border-radius:23px;
+      box-shadow:0 4px 22px #79554812;
+    }
+    .map-badge {
+      position:absolute; top:28px; left:30px; z-index:1;
+      padding:12px 15px; border:1px solid #f0e4d8;
+      border-radius:15px; background:#ffffffef;
+      box-shadow:0 4px 14px #49352c12; pointer-events:none;
+    }
+    .map-badge strong {
+      display:block; color:var(--dark-brown); font-size:13px;
+    }
+    .map-badge span {
+      display:block; margin-top:4px; color:var(--muted); font-size:10px;
+    }
+    .map-tip {
+      position:absolute; right:27px; bottom:25px; z-index:1;
+      max-width:230px; padding:10px 13px;
+      border:1px solid #f0e4d8; border-radius:13px;
+      background:#ffffffed; color:#806b5b; font-size:11px;
+      line-height:1.6; box-shadow:0 4px 14px #49352c0c;
+      pointer-events:none;
+    }
+    .dog-marker {
+      font-size:30px; line-height:1; cursor:pointer;
+      filter:drop-shadow(0 2px 2px #49352c25); transition:transform .15s;
+    }
+    .dog-marker:hover { transform:scale(1.2); }
+    .popup {
+      min-width:205px; max-width:270px; padding:13px;
+      color:var(--text); font-size:12px; line-height:1.8;
+      overflow-wrap:anywhere;
+    }
+    .popup-title {
+      margin-bottom:7px; font-size:15px; font-weight:900;
+      color:var(--dark-brown);
+    }
+    .popup-tag {
+      display:inline-block; margin:0 0 7px; padding:3px 7px;
+      border-radius:6px; background:#eef6ed; color:#537f58;
+      font-size:10px; font-weight:800;
+    }
+    @media(max-width:760px) {
+      .sidebar { width:300px; min-width:270px; }
+      .brand { padding:18px 15px; }
+      .search-section { padding:14px 12px; }
+      .tabs { padding:0 12px 12px; }
+      .list-header { padding:12px; }
+      #status { padding-left:12px; padding-right:12px; }
+      .map-area { padding:7px; }
+      #map { border-radius:16px; }
+      .map-badge { top:18px; left:17px; }
+    }
+    @media(max-width:520px) {
+      .app { flex-direction:column; }
+      .sidebar {
+        width:100%; min-width:0; height:58%; flex:none;
+        border-right:none; border-bottom:1px solid var(--line);
+      }
+      .brand { padding:10px 14px; }
+      .brand-icon {
+        width:39px; height:39px; border-radius:13px; font-size:23px;
+      }
+      .brand h1 { font-size:20px; }
+      .brand p { font-size:10px; }
+      .paw-decoration { display:none; }
+      .search-section { padding:10px 12px 8px; }
+      .section-label { margin-bottom:6px; }
+      .location-button { margin-top:6px; padding:7px; }
+      .tabs { padding-bottom:9px; }
+      .tab { padding:9px; }
+      .list-header { padding:9px 13px; }
+      #status { padding-top:6px; }
+      #placeList { padding:5px 9px 10px; }
+      .place-card { margin:5px 0; padding:10px; }
+      .map-area { flex:1; min-height:0; padding:6px; }
+      .map-tip { right:12px; bottom:13px; }
+    }
+  </style>
+</head>
+
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-top">
+        <div class="brand-icon">🐶</div>
+        <div>
+          <h1>멍냥지도</h1>
+          <p>우리 아이와 함께 가는 곳 🐾</p>
+        </div>
+      </div>
+      <div class="paw-decoration">
+        🐾 소중한 반려동물과 함께하는<br>
+        &nbsp;&nbsp;&nbsp;즐거운 외출을 찾아봐요!
+      </div>
+    </div>
+
+    <section class="search-section">
+      <div class="section-label">🔎 어디로 떠나 볼까요?</div>
+      <div class="search-box">
+        <span class="search-icon">🐾</span>
+        <input id="keywordInput" type="text"
+          placeholder="매장명, 주소, 키워드 검색">
+        <button class="search-button" id="searchButton">검색</button>
+      </div>
+      <button class="location-button" id="locationButton">
+        📍 내 주변 매장 찾기
+      </button>
+    </section>
+
+    <nav class="tabs">
+      <button class="tab active" data-category="카페">☕ 카페</button>
+      <button class="tab" data-category="식당">🍽️ 음식점</button>
+    </nav>
+
+    <div class="list-header">
+      <span class="list-title" id="listTitle">☕ 멍카페</span>
+      <span id="resultCount">불러오는 중</span>
+    </div>
+
+    <div id="status">매장 데이터를 불러오고 있어요...</div>
+    <section id="placeList">
+      <div class="empty-state">
+        <div class="big-dog">🐕</div>
+        잠시만 기다려 주세요!
+      </div>
+    </section>
+  </aside>
+
+  <main class="map-area">
+    <div id="map"></div>
+    <div class="map-badge">
+      <strong>🐾 멍냥이와 함께</strong>
+      <span>지도에서 강아지 아이콘을 눌러 보세요!</span>
+    </div>
+    <div class="map-tip">
+      💡 지도를 이동한 뒤 검색하면<br>
+      해당 지역의 매장을 찾을 수 있어요.
+    </div>
+  </main>
+</div>
+
+<script>
+  const CSV_FILE = "./places.csv";
+  const SEARCH_RADIUS = 5000;
+  const MAX_RESULTS = 50;
+
+  let map;
+  let allPlaces = [];
+  let overlays = [];
+  let activeInfoWindow = null;
+  let selectedCategory = "카페";
+
+  const statusElement = document.getElementById("status");
+  const placeList = document.getElementById("placeList");
+  const resultCount = document.getElementById("resultCount");
+  const listTitle = document.getElementById("listTitle");
+
+  function escapeHTML(value) {
+    return String(value ?? "").replace(/[&<>"']/g, char => ({
+      "&":"&amp;", "<":"&lt;", ">":"&gt;",
+      '"':"&quot;", "'":"&#39;"
+    })[char]);
+  }
+
+  function calculateDistance(lat1, lng1, lat2, lng2) {
+    const earthRadius = 6371000;
+    const radians = degree => degree * Math.PI / 180;
+    const dLat = radians(lat2 - lat1);
+    const dLng = radians(lng2 - lng1);
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(radians(lat1)) * Math.cos(radians(lat2)) *
+      Math.sin(dLng / 2) ** 2;
+    return 2 * earthRadius *
+      Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  function formatDistance(distance) {
+    return distance < 1000
+      ? `${Math.round(distance)}m`
+      : `${(distance / 1000).toFixed(1)}km`;
+  }
+
+  function updateTabLabels() {
+    listTitle.textContent =
+      selectedCategory === "카페" ? "☕ 멍카페" : "🍽️ 멍식당";
+  }
+
+  function loadCSV() {
+    if (!window.Papa) {
+      statusElement.textContent =
+        "CSV 도구를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.";
+      return;
+    }
+
+    statusElement.textContent = "매장 데이터를 불러오는 중...";
+
+    Papa.parse(CSV_FILE, {
+      download:true,
+      header:true,
+      skipEmptyLines:true,
+      encoding:"UTF-8",
+
+      complete:function(result) {
+        if (!result.data || result.data.length === 0) {
+          statusElement.textContent =
+            "CSV 파일이 비어 있어요. places.csv가 올라갔는지 확인해 주세요.";
+          return;
+        }
+
+        allPlaces = result.data
+          .filter(place => {
+            const category = String(place["카테고리3"] || "").trim();
+            const petAllowed = String(
+              place["반려동물 동반 가능정보"] || ""
+            ).trim().toUpperCase();
+            const lat = Number(place["위도"]);
+            const lng = Number(place["경도"]);
+
+            return ["카페","식당"].includes(category) &&
+              petAllowed === "Y" &&
+              String(place["시설명"] || "").trim() !== "" &&
+              Number.isFinite(lat) && Number.isFinite(lng) &&
+              lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+          })
+          .map(place => ({
+            ...place,
+            lat:Number(place["위도"]),
+            lng:Number(place["경도"]),
+            name:String(place["시설명"]).trim(),
+            category:String(place["카테고리3"]).trim(),
+            address:String(
+              place["도로명주소"] || place["지번주소"] || "주소 정보 없음"
+            ).trim()
+          }));
+
+        if (allPlaces.length === 0) {
+          statusElement.textContent =
+            "조건에 맞는 매장이 없어요. CSV의 열 이름을 확인해 주세요.";
+          console.error("CSV 열 이름:", Object.keys(result.data[0]));
+          return;
+        }
+
+        statusElement.textContent =
+          `반려동물 동반 가능 매장 ${allPlaces.length}곳을 불러왔어요.`;
+        searchPlaces();
+      },
+
+      error:function(error) {
+        statusElement.textContent =
+          "CSV를 불러오지 못했어요. GitHub 저장소를 확인해 주세요.";
+        console.error("CSV 오류:", error);
+      }
+    });
+  }
+
+  function clearResults() {
+    overlays.forEach(overlay => overlay.setMap(null));
+    overlays = [];
+
+    if (activeInfoWindow) {
+      activeInfoWindow.close();
+      activeInfoWindow = null;
+    }
+
+    placeList.innerHTML = "";
+  }
+
+  // 매장명, 주소, 업종, 전화번호, 반려동물 안내 키워드 검색
+  function searchPlaces() {
+    if (!map || allPlaces.length === 0) return;
+
+    clearResults();
+    updateTabLabels();
+
+    const keywords = document.getElementById("keywordInput")
+      .value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+
+    const center = map.getCenter();
+    const centerLat = center.getLat();
+    const centerLng = center.getLng();
+
+    const results = allPlaces
+      .filter(place => {
+        if (place.category !== selectedCategory) return false;
+
+        // 홈페이지 주소는 검색 대상에서 제외
+        const searchableText = [
+          place.name,
+          place.category,
+          place.address,
+          place["도로명주소"],
+          place["지번주소"],
+          place["전화번호"],
+          place["반려동물 제한사항"],
+          place["반려동물 동반 가능정보"]
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        // 여러 단어를 입력하면 모든 단어가 포함된 매장만 표시
+        return keywords.every(keyword =>
+          searchableText.includes(keyword)
+        );
+      })
+      .map(place => ({
+        ...place,
+        distance:calculateDistance(
+          centerLat, centerLng, place.lat, place.lng
+        )
+      }))
+      .filter(place => place.distance <= SEARCH_RADIUS)
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, MAX_RESULTS);
+
+    resultCount.textContent = `${results.length}곳`;
+
+    if (results.length === 0) {
+      placeList.innerHTML = `
+        <div class="empty-state">
+          <div class="big-dog">🐶</div>
+          앗! 검색 결과가 없어요.<br>
+          다른 키워드를 입력하거나<br>
+          지도를 다른 지역으로 옮겨 보세요! 🐾
+        </div>
+      `;
+      statusElement.textContent =
+        "선택한 업종과 지도 중심 5km 이내에서 검색했어요.";
+      return;
+    }
+
+    results.forEach(place => {
+      addPlaceMarker(place);
+      addPlaceCard(place);
+    });
+
+    statusElement.textContent =
+      `검색 결과 ${results.length}곳 · 지도 중심 5km 이내`;
+    placeList.scrollTop = 0;
+  }
+
+  function addPlaceMarker(place) {
+    const position = new kakao.maps.LatLng(place.lat, place.lng);
+    const markerElement = document.createElement("div");
+    markerElement.className = "dog-marker";
+    markerElement.textContent = "🐶";
+    markerElement.title = place.name;
+
+    const overlay = new kakao.maps.CustomOverlay({
+      position:position,
+      content:markerElement,
+      yAnchor:1
+    });
+
+    overlay.setMap(map);
+    overlays.push(overlay);
+
+    markerElement.addEventListener("click", function() {
+      showPlaceInfo(place, position);
+    });
+  }
+
+  function addPlaceCard(place) {
+    const card = document.createElement("article");
+    card.className = "place-card";
+    const emoji = place.category === "카페" ? "☕" : "🍽️";
+
+    card.innerHTML = `
+      <div class="card-top">
+        <div class="card-emoji">${emoji}</div>
+        <div class="card-info">
+          <h3>${escapeHTML(place.name)}</h3>
+          <span class="category-tag">${escapeHTML(place.category)}</span>
+        </div>
+      </div>
+      <div class="place-address">📍 ${escapeHTML(place.address)}</div>
+      <div class="place-distance">지도 중심에서 ${formatDistance(place.distance)}</div>
+      <div class="pet-tag">🐾 동반 가능 정보 등록</div>
+    `;
+
+    card.addEventListener("click", function() {
+      const position = new kakao.maps.LatLng(place.lat, place.lng);
+      map.panTo(position);
+      showPlaceInfo(place, position);
+    });
+
+    placeList.appendChild(card);
+  }
+
+  // 홈페이지 링크를 제거한 매장 정보 팝업
+  function showPlaceInfo(place, position) {
+    if (activeInfoWindow) activeInfoWindow.close();
+
+    const phone = String(place["전화번호"] || "").trim();
+    const restrictions = String(
+      place["반려동물 제한사항"] || "별도 정보 없음"
+    ).trim();
+
+    let phoneHTML = escapeHTML(phone || "정보 없음");
+
+    if (phone && /^[0-9+()\-\s]+$/.test(phone)) {
+      phoneHTML = `<a href="tel:${escapeHTML(phone)}">${escapeHTML(phone)}</a>`;
+    }
+
+    const content = `
+      <div class="popup">
+        <div class="popup-title">🐶 ${escapeHTML(place.name)}</div>
+        <span class="popup-tag">🐾 동반 가능 정보 등록</span><br>
+        <strong>분류</strong> · ${escapeHTML(place.category)}<br>
+        <strong>주소</strong> · ${escapeHTML(place.address)}<br>
+        <strong>전화</strong> · ${phoneHTML}<br>
+        <strong>반려동물 안내</strong> · ${escapeHTML(restrictions)}
+      </div>
+    `;
+
+    activeInfoWindow = new kakao.maps.InfoWindow({
+      content:content,
+      removable:true
+    });
+
+    const anchorMarker = new kakao.maps.Marker({
+      position:position,
+      opacity:0
+    });
+
+    anchorMarker.setMap(map);
+    overlays.push({
+      setMap:function(value) {
+        anchorMarker.setMap(value);
+      }
+    });
+
+    activeInfoWindow.open(map, anchorMarker);
+  }
+
+  function moveToMyLocation() {
+    if (!navigator.geolocation) {
+      statusElement.textContent =
+        "현재 위치 기능을 지원하지 않는 브라우저예요.";
+      return;
+    }
+
+    statusElement.textContent = "현재 위치를 찾고 있어요...";
+
+    navigator.geolocation.getCurrentPosition(
+      function(position) {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        map.setCenter(new kakao.maps.LatLng(lat, lng));
+        searchPlaces();
+      },
+      function() {
+        statusElement.textContent =
+          "위치 권한을 확인해 주세요. 브라우저에서 위치 접근을 허용해야 해요.";
+      },
+      {enableHighAccuracy:true, timeout:10000}
+    );
+  }
+
+  document.querySelectorAll(".tab").forEach(tab => {
+    tab.addEventListener("click", function() {
+      selectedCategory = this.dataset.category;
+      document.querySelectorAll(".tab").forEach(item =>
+        item.classList.remove("active")
+      );
+      this.classList.add("active");
+      searchPlaces();
+    });
+  });
+
+  document.getElementById("searchButton")
+    .addEventListener("click", searchPlaces);
+
+  document.getElementById("keywordInput")
+    .addEventListener("keydown", function(event) {
+      if (event.key === "Enter") searchPlaces();
+    });
+
+  document.getElementById("locationButton")
+    .addEventListener("click", moveToMyLocation);
+
+  function initializeMap() {
+    map = new kakao.maps.Map(document.getElementById("map"), {
+      center:new kakao.maps.LatLng(37.5665, 126.9780),
+      level:5
+    });
+    loadCSV();
+  }
+
+  if (window.kakao && window.kakao.maps) {
+    kakao.maps.load(initializeMap);
+  } else {
+    statusElement.textContent =
+      "지도를 불러오지 못했어요. 카카오 JavaScript 키와 Web 도메인을 확인해 주세요.";
+  }
+</script>
+</body>
+</html>
